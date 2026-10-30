@@ -3,6 +3,7 @@ import sqlite3
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 from api.authentication import get_current_user, normalize_email, normalize_domain, require_merchant_integration
 from api.schemas import AuthResponse, LoginRequest, MerchantReportRequest, MerchantTransactionRequest, RegisterRequest, TransactionInput, URLAssessmentRequest
@@ -16,8 +17,14 @@ router = APIRouter()
 async def health():
     from engine.model_loader import get_model_container
     model = get_model_container()
-    return {"status": "healthy", "url_assessment": True, "transaction_model_ready": model.is_ready,
-            "database_ready": prototype_store.store_is_ready()}
+    database_ready = prototype_store.store_is_ready()
+    payload = {
+        "status": "healthy" if model.is_ready and database_ready else "not_ready",
+        "url_assessment": True,
+        "transaction_model_ready": model.is_ready,
+        "database_ready": database_ready,
+    }
+    return JSONResponse(status_code=200 if model.is_ready and database_ready else 503, content=payload)
 
 
 @router.post("/auth/register", response_model=AuthResponse, status_code=201)

@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: payshield
+    runtime: docker
+    plan: standard
+    region: singapore
+    healthCheckPath: /api/v1/health
+    disk:
+      name: payshield-data
+      mountPath: /app/runtime
+      sizeGB: 1
+    envVars:
+      - key: PAYSHIELD_ENV
+        value: production
+      - key: PAYSHIELD_DB_PATH
+        value: /app/runtime/payshield.db
+      - key: PAYSHIELD_FRONTEND_ORIGINS
+        value: ""
+      - key: PAYSHIELD_ADMIN_TOKEN
+        generateValue: true
+      - key: PAYSHIELD_MERCHANT_API_KEY
+        generateValue: true
