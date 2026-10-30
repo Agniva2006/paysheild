@@ -30,7 +30,7 @@ MAX_RECENT_DECISIONS_BUFFER = 500
 API_TITLE = "PayShield: Constraint-Aware Fraud Decision API"
 API_VERSION = "1.0.0"
 API_DESCRIPTION = (
-    "Production FastAPI backend for PayShield. Treats fraud detection as a three-action decision "
-    "problem (ALLOW, STEP-UP, BLOCK) with dynamic, zero-retraining friction budget recalibration."
+    "PayShield assesses payment website URLs and explains observable URL signals. IEEE-CIS transaction "
+    "scoring is available through authenticated merchant integrations that provide transaction features."
 )
 

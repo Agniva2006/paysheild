@@ -61,8 +61,8 @@ class DynamicPolicyEngine:
 
     def _compute_threshold(self, budget: float) -> float:
         """
-        Computes dynamic T_stepup(B) = Quantile(1 - B) using linear interpolation
-        over the empirical calibration distribution.
+        Computes a decision threshold from saved out-of-fold score quantiles.
+        This calibrates policy thresholds, not the model's probability output.
         """
         if not self.quantile_table:
             return FALLBACK_STEPUP_THRESHOLD
@@ -147,21 +147,21 @@ class DynamicPolicyEngine:
         if score >= self.block_threshold:
             action = "BLOCK"
             reason = (
-                f"Calibrated fraud risk ({score:.4f}) >= block threshold ({self.block_threshold:.4f}). "
-                "High probability of fraudulent attack; hard denial executed."
+                f"Model score ({score:.4f}) >= configured block threshold ({self.block_threshold:.4f}). "
+                "The transaction meets the configured block policy."
             )
         elif score >= self.stepup_threshold:
             action = "STEP-UP"
             reason = (
-                f"Calibrated fraud risk ({score:.4f}) between step-up ({self.stepup_threshold:.4f}) "
+                f"Model score ({score:.4f}) between step-up ({self.stepup_threshold:.4f}) "
                 f"and block ({self.block_threshold:.4f}) thresholds under {self.friction_budget:.2%} friction budget. "
                 "Secondary authentication (OTP / 3DS / Biometrics) required."
             )
         else:
             action = "ALLOW"
             reason = (
-                f"Calibrated fraud risk ({score:.4f}) < step-up threshold ({self.stepup_threshold:.4f}). "
-                "Transaction clears risk tolerance; seamless checkout permitted."
+                f"Model score ({score:.4f}) < step-up threshold ({self.stepup_threshold:.4f}). "
+                "The configured policy returns ALLOW; validate it against merchant transaction data before relying on the action."
             )
 
         return action, reason

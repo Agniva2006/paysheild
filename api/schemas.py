@@ -11,13 +11,13 @@ class TransactionInput(BaseModel):
         description="Unique identifier for transaction"
     )
     TransactionAmt: float = Field(..., gt=0.0, description="Transaction payment amount in USD / local currency")
-    ProductCD: Optional[Union[str, int]] = Field("W", description="Product code (e.g. W, C, H, R, S)")
+    ProductCD: Optional[Union[str, int]] = Field(None, description="Product code (e.g. W, C, H, R, S)")
     card1: Optional[Union[float, int]] = Field(None, description="Card attribute 1")
     card2: Optional[Union[float, int]] = Field(None, description="Card attribute 2")
     card3: Optional[Union[float, int]] = Field(None, description="Card attribute 3")
-    card4: Optional[str] = Field("visa", description="Card brand (visa, mastercard, discover, etc.)")
+    card4: Optional[str] = Field(None, description="Card brand (visa, mastercard, discover, etc.)")
     card5: Optional[Union[float, int]] = Field(None, description="Card attribute 5")
-    card6: Optional[str] = Field("debit", description="Card type (credit, debit, etc.)")
+    card6: Optional[str] = Field(None, description="Card type (credit, debit, etc.)")
     addr1: Optional[Union[float, int]] = Field(None, description="Billing/Shipping region code")
     addr2: Optional[Union[float, int]] = Field(None, description="Billing/Shipping country code")
     dist1: Optional[float] = Field(None, description="Distance 1")
@@ -48,7 +48,7 @@ class ThresholdsInfo(BaseModel):
 class DecisionResponse(BaseModel):
     transaction_id: str
     amount: float
-    fraud_risk_score: float = Field(..., ge=0.0, le=1.0, description="Calibrated fraud probability")
+    fraud_risk_score: float = Field(..., ge=0.0, le=1.0, description="Raw LightGBM score; probability calibration is not included")
     action: Literal["ALLOW", "STEP-UP", "BLOCK"]
     action_reason: str
     risk_factors: List[str] = Field(default_factory=list, description="Top observable drivers and explanation")
@@ -59,18 +59,12 @@ class DecisionResponse(BaseModel):
     inference_mode: str
     latency_ms: float
     timestamp: str
-
-class StepUpVerifyRequest(BaseModel):
-    transaction_id: str = Field(..., description="Transaction ID requiring step-up challenge")
-    otp_code: str = Field(..., description="6-digit authentication code (demo default: '123456')")
-
-class StepUpVerifyResponse(BaseModel):
-    transaction_id: str
-    amount: float
-    action: str
-    status: str
-    message: str
-    timestamp: str
+    provided_feature_count: int = 0
+    expected_feature_count: int = 0
+    input_coverage: float = 0.0
+    score_calibrated: bool = False
+    recommended_action: Optional[str] = None
+    input_quality_note: Optional[str] = None
 
 class BatchDecisionResponse(BaseModel):
     total_evaluated: int
@@ -105,19 +99,34 @@ class PolicyRecalibrateResponse(BaseModel):
     requires_retraining: bool = False
     requires_restart: bool = False
 
-class StressTestRequest(BaseModel):
-    sample_size: int = Field(100, ge=10, le=5000, description="Number of synthetic/cached transactions to evaluate")
-    from_budget: float = Field(0.02, ge=0.001, le=0.10, description="Initial friction budget (e.g. 2%)")
-    to_budget: float = Field(0.01, ge=0.001, le=0.10, description="Shifted friction budget (e.g. 1%)")
-    block_threshold: float = Field(0.85, ge=0.50, le=0.999)
+class RegisterRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=254)
+    password: str = Field(..., min_length=8, max_length=128)
 
-class StressTestResponse(BaseModel):
-    transactions_evaluated: int
-    baseline_policy: Dict[str, Any]
-    target_policy: Dict[str, Any]
-    action_shift: Dict[str, Any]
-    stepup_reduction_pct: float
-    requires_retraining: bool = False
-    requires_restart: bool = False
-    execution_time_ms: float
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=254)
+    password: str = Field(..., min_length=1, max_length=128)
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: Dict[str, Any]
+
+
+class URLAssessmentRequest(BaseModel):
+    url: str = Field(..., min_length=4, max_length=2048)
+
+
+class MerchantTransactionRequest(BaseModel):
+    assessment_id: str = Field(..., min_length=10, max_length=64)
+    transaction: TransactionInput
+    inference_mode: Literal["fast", "ensemble"] = "fast"
+
+
+class MerchantReportRequest(BaseModel):
+    domain: str = Field(..., min_length=3, max_length=253)
+    category: Literal["payment_concern", "delivery_issue", "impersonation", "other"]
+    note: str = Field(..., min_length=5, max_length=500)
 

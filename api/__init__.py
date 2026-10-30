@@ -1,4 +1,2 @@
-from api.routes import router
-
-__all__ = ["router"]
+"""PayShield API package. Routers are imported by the application entry point."""
 

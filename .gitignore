@@ -17,6 +17,11 @@ ENV/
 .vscode/
 .idea/
 
+# Local prototype database and SQLite write-ahead logs
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
 # OS metadata
 .DS_Store
 Thumbs.db

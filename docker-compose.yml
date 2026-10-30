@@ -5,8 +5,23 @@ services:
     build: .
     container_name: payshield_api
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
+      - PAYSHIELD_DB_PATH=/app/runtime/payshield.db
+      - PAYSHIELD_ENV=${PAYSHIELD_ENV:-development}
+      - PAYSHIELD_ADMIN_TOKEN=${PAYSHIELD_ADMIN_TOKEN:-}
+      - PAYSHIELD_FRONTEND_ORIGINS=${PAYSHIELD_FRONTEND_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      - PAYSHIELD_MERCHANT_API_KEY=${PAYSHIELD_MERCHANT_API_KEY:-}
+      - PAYSHIELD_APP_URL=${PAYSHIELD_APP_URL:-http://localhost:8000}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_PREMIUM_PRICE_ID=${STRIPE_PREMIUM_PRICE_ID:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - GOOGLE_WEB_RISK_API_KEY=${GOOGLE_WEB_RISK_API_KEY:-}
+    volumes:
+      - payshield-runtime:/app/runtime
     restart: unless-stopped
+
+volumes:
+  payshield-runtime:
 

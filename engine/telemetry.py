@@ -129,12 +129,17 @@ class TelemetryMonitor:
         # Check if transaction has pending challenge
         challenge = self.pending_challenges.get(transaction_id)
         if not challenge:
-            # Fallback for dynamic demo: allow verifying any valid-formatted ID
-            expected_otp = "123456"
-            amt = 0.0
-        else:
-            expected_otp = challenge.get("expected_otp", "123456")
-            amt = challenge.get("amount", 0.0)
+            return {
+                "transaction_id": transaction_id,
+                "amount": 0.0,
+                "action": "CHALLENGE_NOT_FOUND",
+                "status": "NOT_FOUND",
+                "message": "No pending step-up challenge exists for this transaction.",
+                "timestamp": now_ts,
+            }
+
+        expected_otp = challenge.get("expected_otp", "123456")
+        amt = challenge.get("amount", 0.0)
 
         if str(otp_code).strip() == expected_otp:
             self.stepup_verified_count += 1

@@ -1,14 +1,17 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
 
 from config import API_TITLE, API_VERSION, API_DESCRIPTION
 from engine.model_loader import get_model_container
 from engine.policy_engine import get_policy_engine
 from engine.telemetry import get_telemetry_monitor
-from api.routes import router
+from api.product_routes import router
+from engine.prototype_store import initialize_store
+from config import BASE_DIR
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,6 +23,7 @@ logger = logging.getLogger("payshield.main")
 async def lifespan(app: FastAPI):
     # Application Startup: Preload LightGBM models & initialize policy engine
     logger.info("Initializing PayShield Backend Services...")
+    initialize_store()
     model_container = get_model_container()
     loaded = model_container.load_models()
     if loaded:
@@ -47,11 +51,16 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Enable CORS for all frontends (Streamlit, React, Vercel, etc.)
+# Allow the local frontend dev server. The built-in prototype UI is same-origin.
+frontend_origins = [
+    origin.strip() for origin in os.getenv(
+        "PAYSHIELD_FRONTEND_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+    ).split(",") if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=frontend_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -59,12 +68,27 @@ app.add_middleware(
 # Register API routes
 app.include_router(router, prefix="/api/v1", tags=["PayShield Core"])
 
+@app.get("/app", include_in_schema=False)
+async def prototype_app():
+    return FileResponse(BASE_DIR / "product.html")
+
+
+@app.get("/app.css", include_in_schema=False)
+async def product_styles():
+    return FileResponse(BASE_DIR / "app.css", media_type="text/css")
+
+
+@app.get("/app.js", include_in_schema=False)
+async def product_script():
+    return FileResponse(BASE_DIR / "app.js", media_type="application/javascript")
+
+
 @app.get("/", summary="Root Overview", tags=["System"])
 async def root():
     policy = get_policy_engine()
     model_container = get_model_container()
     return {
-        "service": "PayShield Fraud Intelligence & Constraint-Aware Policy API",
+        "service": "PayShield Payment Website Risk Assessment API",
         "version": API_VERSION,
         "status": "operational",
         "models_ready": model_container.is_ready,
@@ -77,15 +101,12 @@ async def root():
         },
         "endpoints": {
             "interactive_docs": "/docs",
+            "application": "/app",
             "redoc": "/redoc",
             "health": "/api/v1/health",
-            "score_transaction": "POST /api/v1/score",
-            "batch_score": "POST /api/v1/score/batch",
-            "get_policy": "GET /api/v1/policy",
-            "recalibrate_policy": "POST /api/v1/policy/recalibrate",
-            "metrics": "GET /api/v1/metrics",
-            "stress_test": "POST /api/v1/stress-test",
-            "sample_transactions": "GET /api/v1/samples",
+            "assess_url": "POST /api/v1/assessments/url",
+            "transaction_integration": "POST /api/v1/integrations/transactions/score",
+            "subscription": "POST /api/v1/billing/checkout-session",
         }
     }
 

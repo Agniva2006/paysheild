@@ -8,26 +8,14 @@ from config import FEATURE_NAMES_PATH
 
 logger = logging.getLogger("payshield.feature_pipeline")
 
-# Baseline constants derived from IEEE-CIS dataset reference
-BASELINE_AMT_MEAN = 135.0
-BASELINE_AMT_STD = 239.0
-BASELINE_ID02_MEAN = 174000.0
-BASELINE_ID02_STD = 159000.0
-BASELINE_D15_MEAN = 163.0
-BASELINE_D15_STD = 202.0
 
-CARD4_AMT_MEANS = {
-    "visa": 133.0,
-    "mastercard": 135.0,
-    "discover": 156.0,
-    "american express": 185.0
-}
-
-CARD4_AMT_STDS = {
-    "visa": 230.0,
-    "mastercard": 235.0,
-    "discover": 250.0,
-    "american express": 280.0
+IEEE_CATEGORY_ENCODINGS = {
+    # The training notebook applies sklearn LabelEncoder, which sorts labels.
+    "ProductCD": {"c": 0, "h": 1, "r": 2, "s": 3, "w": 4, "nan": 5},
+    "card4": {"american express": 0, "discover": 1, "mastercard": 2, "nan": 3, "visa": 4},
+    "card6": {"charge card": 0, "credit": 1, "debit": 2, "debit or credit": 3, "nan": 4},
+    "DeviceType": {"desktop": 0, "mobile": 1, "nan": 2},
+    **{f"M{i}": {"f": 0, "t": 1, "nan": 2} for i in range(1, 10)},
 }
 
 class FeaturePipeline:
@@ -46,88 +34,61 @@ class FeaturePipeline:
 
     def transform_record(self, record: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Enriches a raw transaction record with domain & engineered features.
-        Matches the transformations defined in the training notebook.
+        Applies only transforms that can be reproduced from available metadata.
+        Unavailable training-time encoders and group statistics stay missing.
         """
         data = dict(record)
 
-        amt = float(data.get("TransactionAmt", 0.0) or 0.0)
-        card4 = str(data.get("card4", "")).lower()
-        id_02 = float(data.get("id_02", 0.0) or 0.0) if data.get("id_02") is not None else np.nan
-        d15 = float(data.get("D15", 0.0) or 0.0) if data.get("D15") is not None else np.nan
-
-        card4_mean = CARD4_AMT_MEANS.get(card4, BASELINE_AMT_MEAN)
-        card4_std = CARD4_AMT_STDS.get(card4, BASELINE_AMT_STD)
-
-        # 1. TransactionAmt interactions
-        if "TransactionAmt_to_mean_card1" not in data:
-            data["TransactionAmt_to_mean_card1"] = amt / BASELINE_AMT_MEAN if amt else 0.0
-        if "TransactionAmt_to_mean_card4" not in data:
-            data["TransactionAmt_to_mean_card4"] = amt / card4_mean if card4_mean else 0.0
-        if "TransactionAmt_to_std_card1" not in data:
-            data["TransactionAmt_to_std_card1"] = amt / BASELINE_AMT_STD if BASELINE_AMT_STD else 0.0
-        if "TransactionAmt_to_std_card4" not in data:
-            data["TransactionAmt_to_std_card4"] = amt / card4_std if card4_std else 0.0
-
-        # 2. id_02 interactions
-        if not np.isnan(id_02):
-            if "id_02_to_mean_card1" not in data:
-                data["id_02_to_mean_card1"] = id_02 / BASELINE_ID02_MEAN
-            if "id_02_to_mean_card4" not in data:
-                data["id_02_to_mean_card4"] = id_02 / BASELINE_ID02_MEAN
-            if "id_02_to_std_card1" not in data:
-                data["id_02_to_std_card1"] = id_02 / BASELINE_ID02_STD
-            if "id_02_to_std_card4" not in data:
-                data["id_02_to_std_card4"] = id_02 / BASELINE_ID02_STD
-        else:
-            data["id_02_to_mean_card1"] = np.nan
-            data["id_02_to_mean_card4"] = np.nan
-            data["id_02_to_std_card1"] = np.nan
-            data["id_02_to_std_card4"] = np.nan
-
-        # 3. D15 interactions
-        if not np.isnan(d15):
-            if "D15_to_mean_card1" not in data:
-                data["D15_to_mean_card1"] = d15 / BASELINE_D15_MEAN
-            if "D15_to_mean_card4" not in data:
-                data["D15_to_mean_card4"] = d15 / BASELINE_D15_MEAN
-            if "D15_to_std_card1" not in data:
-                data["D15_to_std_card1"] = d15 / BASELINE_D15_STD
-            if "D15_to_std_card4" not in data:
-                data["D15_to_std_card4"] = d15 / BASELINE_D15_STD
-            if "D15_to_mean_addr1" not in data:
-                data["D15_to_mean_addr1"] = d15 / BASELINE_D15_MEAN
-            if "D15_to_mean_addr2" not in data:
-                data["D15_to_mean_addr2"] = d15 / BASELINE_D15_MEAN
-            if "D15_to_std_addr1" not in data:
-                data["D15_to_std_addr1"] = d15 / BASELINE_D15_STD
-            if "D15_to_std_addr2" not in data:
-                data["D15_to_std_addr2"] = d15 / BASELINE_D15_STD
-        else:
-            for k in ["D15_to_mean_card1", "D15_to_mean_card4", "D15_to_std_card1", "D15_to_std_card4",
-                      "D15_to_mean_addr1", "D15_to_mean_addr2", "D15_to_std_addr1", "D15_to_std_addr2"]:
-                data[k] = np.nan
+        # The training-time group means/stds and fitted categorical vocabularies
+        # are not bundled with this legacy model. Never fabricate their values.
+        # Preserve merchant-provided, training-compatible engineered features;
+        # otherwise LightGBM receives missing values for those columns.
+        for name in (
+            "TransactionAmt_to_mean_card1", "TransactionAmt_to_mean_card4",
+            "TransactionAmt_to_std_card1", "TransactionAmt_to_std_card4",
+            "id_02_to_mean_card1", "id_02_to_mean_card4",
+            "id_02_to_std_card1", "id_02_to_std_card4",
+            "D15_to_mean_card1", "D15_to_mean_card4", "D15_to_std_card1", "D15_to_std_card4",
+            "D15_to_mean_addr1", "D15_to_mean_addr2", "D15_to_std_addr1", "D15_to_std_addr2",
+        ):
+            data.setdefault(name, np.nan)
 
         # 4. Email domain splits
         p_email = str(data.get("P_emaildomain", "") or "")
         r_email = str(data.get("R_emaildomain", "") or "")
 
-        p_parts = p_email.split(".") if p_email else []
-        r_parts = r_email.split(".") if r_email else []
+        # These were LabelEncoded using the complete training vocabulary. The fitted
+        # vocabulary is not present in the saved model artifacts, so unknown domain
+        # categories must remain missing instead of receiving fabricated hash codes.
+        data.setdefault("P_emaildomain_1", np.nan)
+        data.setdefault("P_emaildomain_2", np.nan)
+        data.setdefault("R_emaildomain_1", np.nan)
+        data.setdefault("R_emaildomain_2", np.nan)
 
-        data["P_emaildomain_1"] = hash(p_parts[0]) % 1000 if len(p_parts) > 0 else np.nan
-        data["P_emaildomain_2"] = hash(p_parts[1]) % 1000 if len(p_parts) > 1 else np.nan
-        data["R_emaildomain_1"] = hash(r_parts[0]) % 1000 if len(r_parts) > 0 else np.nan
-        data["R_emaildomain_2"] = hash(r_parts[1]) % 1000 if len(r_parts) > 1 else np.nan
-
-        # Categorical string to numeric encoding fallback
+        # Match the training notebook's sorted LabelEncoder codes when available.
         for key, val in list(data.items()):
+            if val is None and key in IEEE_CATEGORY_ENCODINGS:
+                data[key] = float(IEEE_CATEGORY_ENCODINGS[key]["nan"])
+                continue
             if isinstance(val, str):
                 try:
                     data[key] = float(val)
                 except ValueError:
-                    # Deterministic hash code representation for categoricals
-                    data[key] = float(abs(hash(val)) % 10000)
+                    encoded = IEEE_CATEGORY_ENCODINGS.get(key, {}).get(val.strip().lower())
+                    data[key] = float(encoded) if encoded is not None else np.nan
+
+        # These numeric-looking fields were LabelEncoded from string values in
+        # training. Without the saved LabelEncoder classes, raw identifiers are
+        # not valid model codes; missing is safer than passing the raw number.
+        for key in ("card1", "card2", "card3", "card5", "addr1", "addr2"):
+            if key in data and data[key] is not None:
+                data[key] = np.nan
+
+        # LabelEncoder saw these category vocabularies during training, including
+        # the literal "nan" value for missing entries. Preserve that trained code.
+        for key, encoding in IEEE_CATEGORY_ENCODINGS.items():
+            if key not in data:
+                data[key] = float(encoding["nan"])
 
         return data
 

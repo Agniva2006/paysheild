@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101b2b">
+  <title>PayShield · Payment risk</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/app"><span class="brand-icon">P</span><span>PayShield</span></a>
+    <div id="accountBar" class="account-bar hidden">
+      <span id="accountEmail" class="account-email"></span>
+      <span id="planBadge" class="plan-badge">FREE</span>
+      <button id="subscribeButton" class="button button-small" type="button">Upgrade plan</button>
+      <button id="portalButton" class="button button-small button-quiet hidden" type="button">Manage plan</button>
+      <button id="logoutButton" class="button button-small button-quiet" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="authView" class="auth-view">
+      <div class="auth-intro">
+        <p class="eyebrow">PAYMENT RISK INTELLIGENCE</p>
+        <h1>Know what you’re<br><span>paying into.</span></h1>
+        <p class="intro-copy">Check the payment website, see the evidence behind its risk signals, and run your transaction through the IEEE-CIS model.</p>
+        <div class="trust-note">Your payment card number is never requested.</div>
+      </div>
+      <section class="card auth-card">
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-auth-mode="login" type="button">Sign in</button>
+          <button class="auth-tab" data-auth-mode="register" type="button">Create account</button>
+        </div>
+        <form id="authForm">
+          <label>Email address<input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+          <label>Password<input id="authPassword" type="password" minlength="8" autocomplete="current-password" required placeholder="At least 8 characters"></label>
+          <button id="authSubmit" class="button button-primary button-wide" type="submit">Sign in</button>
+          <p id="authMessage" class="message" role="alert"></p>
+        </form>
+      </section>
+    </section>
+
+    <section id="workspace" class="hidden">
+      <div class="page-heading">
+        <div><p class="eyebrow">PAYMENT WEBSITE CHECK</p><h1>Assess a payment</h1><p class="intro-copy">Paste the checkout link. PayShield checks live domain signals, then lets you run transaction details through the IEEE-CIS model.</p></div>
+        <div id="serviceStatus" class="service-status"><span></span><b>Connecting</b></div>
+      </div>
+
+      <section class="card url-card">
+        <form id="urlForm" class="url-form">
+          <label for="paymentUrl">Payment website URL</label>
+          <div class="url-row"><input id="paymentUrl" type="url" required maxlength="2048" placeholder="https://merchant.example/checkout"><button id="assessButton" class="button button-primary" type="submit">Check website</button></div>
+          <p class="help-text">We check URL structure, public DNS and HTTPS. If configured, Google Web Risk checks known phishing and malware lists. We don’t download the page.</p>
+          <p class="help-text">URL paths and query data are checked locally, then discarded. Only the domain is retained or shared with the optional reputation check.</p>
+          <p id="urlMessage" class="message" role="status"></p>
+        </form>
+      </section>
+
+      <section id="assessmentResults" class="hidden results-layout">
+        <section id="websiteResult" class="card result-card"></section>
+        <section id="modelResult" class="card result-card model-card"></section>
+      </section>
+
+      <section class="card history-card">
+        <div class="section-heading"><div><p class="eyebrow">YOUR ACCOUNT</p><h2>Recent assessments</h2><p id="planText" class="help-text"></p></div><button id="refreshHistory" class="button button-quiet" type="button">Refresh</button></div>
+        <div id="historyList" class="history-list"><p class="help-text">Sign in to view your history.</p></div>
+      </section>
+      <p id="billingMessage" class="billing-message" role="status"></p>
+      <p class="disclaimer">URL signals and model scores are decision support. They cannot guarantee that a merchant or payment is safe. User-submitted reports are unverified.</p>
+    </section>
+  </main>
+
+  <dialog id="planDialog" class="plan-dialog">
+    <form method="dialog"><button class="dialog-close" aria-label="Close">×</button></form>
+    <p class="eyebrow">PAYSHIELD PREMIUM</p><h2>More assessment history</h2>
+    <p>Free accounts can view the latest 5 assessments. Premium accounts can view up to 100 and manage their subscription here.</p>
+    <button id="confirmSubscribe" class="button button-primary button-wide" type="button">Continue to secure checkout</button>
+    <p id="dialogMessage" class="message" role="status"></p>
+  </dialog>
+
+  <script src="/app.js?v=1" defer></script>
+</body>
+</html>

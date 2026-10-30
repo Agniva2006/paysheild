@@ -16,9 +16,10 @@ import os
 import time
 import pickle
 import warnings
+from typing import Optional
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
 from sklearn import metrics
 import lightgbm as lgb
@@ -93,7 +94,7 @@ def train_kfold_lightgbm(X: pd.DataFrame, y: pd.Series, params: dict, n_splits: 
     """
     Trains 5-fold LightGBM classifier and collects out-of-fold predictions.
     """
-    folds = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+    folds = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     models = []
     oof = np.zeros(len(X))
     scores = []

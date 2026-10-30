@@ -88,6 +88,32 @@ class ModelContainer:
         latency_ms = (time.perf_counter() - start_t) * 1000.0
         return np.clip(probs, 0.0, 1.0), latency_ms
 
+    def explain(self, features_df: pd.DataFrame, mode: str = DEFAULT_INFERENCE_MODE) -> List[Tuple[str, float]]:
+        """Return mean LightGBM contributions in raw-margin (log-odds) space."""
+        rows = self.explain_many(features_df, mode)
+        return rows[0] if rows else []
+
+    def explain_many(self, features_df: pd.DataFrame, mode: str = DEFAULT_INFERENCE_MODE) -> List[List[Tuple[str, float]]]:
+        """Return contributions for each row in raw-margin (log-odds) space."""
+        if not self.is_ready or not self.models:
+            if not self.load_models():
+                return []
+        models = self.models if mode == "ensemble" else self.models[:1]
+        fold_values = []
+        for model in models:
+            try:
+                booster = model.booster_
+                num_iteration = getattr(model, "best_iteration_", None) or 0
+                fold_values.append(np.atleast_2d(booster.predict(
+                    features_df, pred_contrib=True, num_iteration=num_iteration
+                )))
+            except Exception:
+                logger.warning("LightGBM feature contributions unavailable for this model artifact")
+                return []
+        values = np.mean(np.asarray(fold_values), axis=0)
+        names = list(features_df.columns)
+        return [sorted(zip(names, row[:-1]), key=lambda pair: pair[1], reverse=True) for row in values]
+
 # Global convenience accessor
 def get_model_container() -> ModelContainer:
     return ModelContainer.get_instance()

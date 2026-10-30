@@ -27,13 +27,13 @@
 
 Conventional fraud detection is broken: binary allow/deny rules reject genuine customers, while static thresholds cannot adapt to changing business constraints.
 
-**PayShield** is an enterprise-grade payment decision engine that:
+**PayShield** is a hackathon prototype for transaction fraud-risk assessment that:
 1. **Substitutes Binary Blocking with a 3-Action Space**: `ALLOW` (low risk), `STEP-UP` (medium risk OTP challenge), and `BLOCK` (high risk).
 2. **Guarantees Customer Friction Budgets**: Dynamically calculates the Step-Up threshold:
    $$T_{stepup}(B) = \text{Quantile}_{1-B}(S_{legit})$$
    ensuring that legitimate customer friction never exceeds configured budget $B$ (e.g. $2\%$).
 3. **Zero-Retraining Live Recalibration**: Risk teams can update the friction budget live (e.g. $2\% \to 1\%$) in microseconds without retraining the ML model or restarting the server.
-4. **Hybrid Defense-in-Depth**: Pre-ML deterministic guardrails (stolen card blacklists, amount ceilings, replay flood locks) combined with a 5-fold LightGBM ensemble.
+4. **IEEE-CIS scoring**: 5-fold LightGBM inference with input coverage and model feature-contribution explanations. The checked-in legacy artifact lacks the full training encoder and group-statistic bundle, so unsupported transforms stay missing and partial-input decisions require review.
 5. **Explainable AI (XAI)**: Returns top observable risk drivers (`risk_factors`) for every evaluated transaction.
 6. **Closed-Loop Resolution**: End-to-end OTP verification via `POST /api/v1/step-up/verify`.
 7. **Real-time Live Streaming**: Server-Sent Events (SSE) stream (`GET /api/v1/stream`) to power real-time dashboard visualizations.
@@ -119,12 +119,38 @@ The API is available at `http://localhost:8000`.
 
 ---
 
+## Hackathon Checkout Prototype
+
+Open `http://localhost:8000/app` after starting the backend. The built-in UI supports account creation/login, a simulated checkout using the bundled IEEE-CIS sample transactions, separate seeded merchant information, per-account SQLite history, and a demo-only Premium switch. No real payment or card credentials are collected.
+
+The database is created automatically at `data/payshield.db` for local runs. Docker Compose stores it in a named volume so the demo account and history survive container restarts. Set `PAYSHIELD_DB_PATH` to choose another database path. Set `PAYSHIELD_FRONTEND_ORIGINS` to a comma-separated list when running a separate frontend dev server. In local development the admin controls remain usable; before a production deployment, set `PAYSHIELD_ENV=production` and a strong `PAYSHIELD_ADMIN_TOKEN`. Policy recalibration, telemetry reset, and stress-test operations then require the matching `X-Admin-Token` header and are disabled if the token is missing.
+
+New prototype endpoints:
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/auth/register` | Create a demo account and session token |
+| `POST` | `/api/v1/auth/login` | Sign in and receive a bearer token |
+| `GET` | `/api/v1/auth/me` | Read the signed-in account |
+| `POST` | `/api/v1/auth/logout` | Revoke the current session |
+| `GET` | `/api/v1/subscription` | Read Free/Premium demo plan |
+| `POST` | `/api/v1/subscription/demo-upgrade` | Simulate Premium without billing |
+| `GET` | `/api/v1/demo/merchants` | List seeded demonstration merchants |
+| `POST` | `/api/v1/demo/checkout` | Score one bundled scenario and save the assessment (bearer token required) |
+| `GET` | `/api/v1/assessments/history` | Read the signed-in user’s saved assessments |
+| `POST` | `/api/v1/demo/step-up/verify` | Verify a pending demo challenge (code `123456`, bearer token required) |
+| `POST` | `/api/v1/merchant-reports` | Save an explicitly unverified user report |
+
+The user-facing checkout is a mock merchant integration. `/demo/checkout` passes the selected fixture through the same scorer used by `/score`; the model’s returned action is shown as-is and is not forced to match the scenario label. Merchant registry entries are fabricated demo data and are displayed separately from the transaction-model result. This prototype cannot inspect or stop payments on unrelated apps or websites.
+
+---
+
 ## 📡 API Specification & Endpoints
 
 ### 1. Evaluate Transaction
 `POST /api/v1/score?mode=fast`
 
-Evaluates an incoming payment, executes pre-ML guardrails, computes calibrated fraud probability, applies dynamic policy, and returns top risk drivers.
+Evaluates a transaction payload, reports a raw LightGBM score and supplied-feature coverage, applies configured policy thresholds, and returns model feature contributions. The output is not a calibrated probability.
 
 #### Request Payload:
 ```json
@@ -149,10 +175,9 @@ Evaluates an incoming payment, executes pre-ML guardrails, computes calibrated f
   "amount": 150.0,
   "fraud_risk_score": 0.004871,
   "action": "ALLOW",
-  "action_reason": "Calibrated fraud risk (0.0049) < step-up threshold (0.7695). Transaction clears risk tolerance; seamless checkout permitted.",
+  "action_reason": "Model score (0.0049) < step-up threshold (0.7695). The configured policy returns ALLOW; validate it against merchant transaction data before relying on the action.",
   "risk_factors": [
-    "Standard transaction amount within customer baseline",
-    "Verified device identity and consistent geolocation"
+    "Transaction category increased the model margin (contribution +0.218 log-odds)."
   ],
   "guardrail_triggered": false,
   "guardrail_rule": null,
@@ -347,7 +372,6 @@ function connectLiveDashboard(onEventReceived) {
    - `TXN-LOW-001`: Genuine domestic card purchase (Expected: `ALLOW`).
    - `TXN-STEPUP-002`: Unfamiliar mobile device with medium anomaly (Expected: `STEP-UP`).
    - `TXN-BLOCK-003`: Extreme velocity burst with proxy IP (Expected: `BLOCK`).
-   - Blacklist test: pass `card1: 9999` to trigger instant pre-ML guardrail block.
 
 ---
 

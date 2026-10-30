@@ -1,0 +1,18 @@
+{
+  "shop.payshield.demo": {
+    "display_name": "PayShield Demo Store",
+    "risk_level": "LOW_DEMO_SIGNAL",
+    "signals": [
+      "This domain is included in the local PayShield demo registry.",
+      "This is seeded demonstration data, not an independently verified merchant rating."
+    ]
+  },
+  "lookalike.payshield.demo": {
+    "display_name": "Lookalike Demo Store",
+    "risk_level": "REVIEW_DEMO_SIGNAL",
+    "signals": [
+      "This demo domain is marked for review in the seeded registry.",
+      "This is a fabricated scenario for demonstration and is not a real-world fraud report."
+    ]
+  }
+}
